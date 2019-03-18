@@ -25,23 +25,24 @@ fn main() {
     warn!("Warning messages enabled");
     error!("Error messages enabled");
 
-    let server = futures::future::lazy(|| {
-        let codec = tokio::codec::LinesCodec::new();
+    let codec = tokio::codec::LinesCodec::new();
 
-        let input = tokio_fs::stdin();
-        let output = tokio_fs::stdout();
+    let input = tokio_fs::stdin();
+    let output = tokio_fs::stdout();
 
-        let copied = tokio::io::copy(input, output).map(|amt| {
-            debug!("Wrote {:?} bytes", amt);
-        }).map_err(|err| {
-            error!("Error: {:?}", err);
-        });
-
-        tokio::spawn(copied)
+    let copied = tokio::io::copy(input, output).map(|amt| {
+        debug!("Wrote {:?} bytes", amt);
+    }).map_err(|err| {
+        error!("Error: {:?}", err);
     });
 
-    tokio::run(server);
+    info!("Creating Runtime");
+    let mut runtime = tokio::runtime::Runtime::new().unwrap();
+    info!("Finished creating Runtime");
 
+    runtime.block_on(copied).unwrap();
+
+    runtime.shutdown_now().wait().unwrap();
     debug!("Finished running future");
 }
 
