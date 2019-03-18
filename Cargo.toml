@@ -1,0 +1,20 @@
+[package]
+name = "tokio-playground"
+version = "0.1.0"
+authors = ["Tyler Slabinski <tslabinski@slabity.net>"]
+edition = "2018"
+
+[dependencies]
+log = "*"
+env_logger = "*"
+relm = { git = "https://github.com/antoyo/relm" }
+relm-derive = { git = "https://github.com/antoyo/relm" }
+relm-attributes = { git = "https://github.com/antoyo/relm" }
+gtk = "*"
+futures = "*"
+tokio = "*"
+tokio-io = "*"
+tokio-fs = "*"
+tokio-codec = "*"
+tokio-process = "*"
+
