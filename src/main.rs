@@ -14,6 +14,12 @@ extern crate tokio_process;
 use futures::Future;
 use tokio::prelude::*;
 
+fn conversion(line: String) -> String {
+    let mut s = String::from("Converted: ");
+    s.push_str(&line);
+    s
+}
+
 fn main() {
     env_logger::Builder::new()
         .target(env_logger::Target::Stderr)
@@ -25,22 +31,18 @@ fn main() {
     warn!("Warning messages enabled");
     error!("Error messages enabled");
 
-    let codec = tokio::codec::LinesCodec::new();
+    let input = tokio::io::lines(std::io::BufReader::new(tokio_fs::stdin()))
+        .map_err(|e| error!("{:?}", e))
+        .map(conversion);
 
-    let input = tokio_fs::stdin();
     let output = tokio_fs::stdout();
-
-    let copied = tokio::io::copy(input, output).map(|amt| {
-        debug!("Wrote {:?} bytes", amt);
-    }).map_err(|err| {
-        error!("Error: {:?}", err);
-    });
 
     info!("Creating Runtime");
     let mut runtime = tokio::runtime::Runtime::new().unwrap();
     info!("Finished creating Runtime");
 
-    runtime.block_on(copied).unwrap();
+    // output needs to be a sink:
+    // runtime.block_on(input.forward(output)).unwrap();
 
     runtime.shutdown_now().wait().unwrap();
     debug!("Finished running future");
