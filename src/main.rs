@@ -32,13 +32,13 @@ fn main() {
     error!("Error messages enabled");
 
     let input = tokio_fs::stdin();
-    let mut output = tokio_fs::stdout();
 
     let server = tokio::io::lines(std::io::BufReader::new(input))
         .map_err(|e| error!("{:?}", e))
         .map(conversion)
         .for_each(move |line| {
-            output.poll_write(line.as_bytes())
+            let output = tokio_fs::stdout();
+            tokio::io::write_all(output, line)
                 .map_err(|e| error!("{:?}", e))
                 .map(|_| {})
         });
