@@ -2,7 +2,6 @@
 extern crate log;
 extern crate env_logger;
 
-#[macro_use]
 extern crate futures;
 
 extern crate tokio;
@@ -17,6 +16,7 @@ use tokio::prelude::*;
 fn conversion(line: String) -> String {
     let mut s = String::from("Converted: ");
     s.push_str(&line);
+    s.push_str("\n");
     s
 }
 
@@ -31,18 +31,23 @@ fn main() {
     warn!("Warning messages enabled");
     error!("Error messages enabled");
 
-    let input = tokio::io::lines(std::io::BufReader::new(tokio_fs::stdin()))
-        .map_err(|e| error!("{:?}", e))
-        .map(conversion);
+    let input = tokio_fs::stdin();
+    let mut output = tokio_fs::stdout();
 
-    let output = tokio_fs::stdout();
+    let server = tokio::io::lines(std::io::BufReader::new(input))
+        .map_err(|e| error!("{:?}", e))
+        .map(conversion)
+        .for_each(move |line| {
+            output.poll_write(line.as_bytes())
+                .map_err(|e| error!("{:?}", e))
+                .map(|_| {})
+        });
 
     info!("Creating Runtime");
     let mut runtime = tokio::runtime::Runtime::new().unwrap();
     info!("Finished creating Runtime");
 
-    // output needs to be a sink:
-    // runtime.block_on(input.forward(output)).unwrap();
+    runtime.block_on(server).unwrap();
 
     runtime.shutdown_now().wait().unwrap();
     debug!("Finished running future");
