@@ -14,7 +14,7 @@ use futures::Future;
 use tokio::prelude::*;
 
 fn conversion(line: String) -> String {
-    let mut s = String::from("Converted: ");
+    let mut s = String::from("Sent to REPL: ");
     s.push_str(&line);
     s.push_str("\n");
     s
@@ -31,13 +31,17 @@ fn main() {
     warn!("Warning messages enabled");
     error!("Error messages enabled");
 
-    let input = tokio_fs::stdin();
 
-    let server = tokio::io::lines(std::io::BufReader::new(input))
+    let Process {
+        input,
+        output,
+        child
+    } = create_repl(&["nix", "repl", "<nixpkgs/nixos>"]);
+
+    let forwarder = tokio::io::lines(std::io::BufReader::new(tokio_fs::stdin()))
         .map_err(|e| error!("{:?}", e))
         .map(conversion)
-        .for_each(move |line| {
-            let output = tokio_fs::stdout();
+        .for_each(|line| {
             tokio::io::write_all(output, line)
                 .map_err(|e| error!("{:?}", e))
                 .map(|_| {})
@@ -47,9 +51,47 @@ fn main() {
     let mut runtime = tokio::runtime::Runtime::new().unwrap();
     info!("Finished creating Runtime");
 
-    runtime.block_on(server).unwrap();
+    runtime.spawn(forwarder);
+    runtime.block_on(child).unwrap();
 
     runtime.shutdown_now().wait().unwrap();
     debug!("Finished running future");
 }
 
+use std::ffi::OsStr;
+
+fn create_repl(command: &[&str]) -> Process {
+    use std::process::{Command, Stdio};
+    use tokio_process::CommandExt;
+
+    let mut child = {
+        let mut child = Command::new(OsStr::new(command[0]));
+
+        for arg in command.iter().skip(1) {
+            child.arg(arg);
+        }
+
+        child.stdin(Stdio::piped())
+            .stdout(Stdio::piped());
+
+        child.spawn_async().unwrap()
+    };
+
+    let input = child.stdin().take().unwrap();
+
+    let output = tokio::io::lines(std::io::BufReader::new(child.stdout().take().unwrap()))
+        .map_err(|e| error!("{:?}", e))
+        .map(conversion);
+
+    Process {
+        input: input,
+        output: Box::new(output),
+        child: child
+    }
+}
+
+struct Process {
+    input: tokio_process::ChildStdin,
+    output: Box<dyn stream::Stream<Item=String, Error=()>>,
+    child: tokio_process::Child
+}
